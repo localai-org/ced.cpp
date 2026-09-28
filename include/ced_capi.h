@@ -66,6 +66,13 @@ typedef struct {
 int ced_capi_classify_pcm(ced_ctx* ctx, const float* samples, int n_samples, int sample_rate,
                           ced_tag* out, int max_tags);
 
+// All class scores for mono float PCM, in class-index order (no sorting, no
+// allocation). Writes min(n_out, ced_capi_num_classes(ctx)) floats into `out`
+// and returns that count, or -1 on error (see ced_capi_last_error). Resamples
+// like ced_capi_classify_pcm when `sample_rate` differs from the model rate.
+int ced_capi_classify_pcm_probs(ced_ctx* ctx, const float* samples, int n_samples,
+                                int sample_rate, float* out, int n_out);
+
 // Free a string returned by a *_json function. Safe on NULL.
 void ced_capi_free_string(char* s);
 

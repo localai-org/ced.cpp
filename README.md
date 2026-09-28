@@ -111,8 +111,11 @@ cmake --build build-shared -j
 | `CED_GGML_METAL`    | OFF     | Forward GGML_METAL to the submodule      |
 | `CED_GGML_VULKAN`   | OFF     | Forward GGML_VULKAN to the submodule     |
 | `CED_GGML_HIP`      | OFF     | Forward GGML_HIP (ROCm) to the submodule |
+| `CED_EXTERNAL_DR_WAV` | OFF   | Do not compile dr_wav; the embedding project provides it |
 
 To build for a GPU backend, forward its flag, e.g. `cmake -B build -DCED_GGML_METAL=ON`.
+
+When ced.cpp is added with `add_subdirectory` by a project that already has a `ggml` target, it reuses that ggml.
 
 At runtime a GPU build picks the first GPU it finds and falls back to CPU. Set `CED_DEVICE` to choose: `CED_DEVICE=cpu` forces the CPU, and a device name such as `CUDA0`, `Vulkan0` or `MTL0` selects that device (`ced-cli info` prints the one in use). The weights are uploaded to the device once at load. If the device has no kernel for an op, that graph runs through ggml's scheduler with a CPU fallback.
 
@@ -158,7 +161,7 @@ if (json) { printf("%s\n", json); ced_capi_free_string(json); }
 ced_capi_free(ctx);
 ```
 
-The per-PCM entry points take an arbitrary mono window, so a realtime consumer can call them on a sliding buffer for live recognition. There is also a struct-array variant (`ced_capi_classify_pcm`) and a WAV-path variant (`ced_capi_classify_path_json`). See `include/ced_capi.h` for the full API.
+The per-PCM entry points take an arbitrary mono window, so a realtime consumer can call them on a sliding buffer for live recognition. There is also a struct-array variant (`ced_capi_classify_pcm`), a WAV-path variant (`ced_capi_classify_path_json`), and `ced_capi_classify_pcm_probs`, which writes every class score in class-index order (no sorting, no allocation) for callers that want the raw distribution. See `include/ced_capi.h` for the full API.
 
 ---
 

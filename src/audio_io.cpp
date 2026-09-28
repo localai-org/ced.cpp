@@ -1,4 +1,6 @@
-#define DR_WAV_IMPLEMENTATION
+#ifndef CED_EXTERNAL_DR_WAV
+#define DR_WAV_IMPLEMENTATION  // an embedding project may provide it instead
+#endif
 #include "dr_wav.h"
 
 #include "audio_io.hpp"

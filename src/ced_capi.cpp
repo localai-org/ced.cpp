@@ -175,6 +175,17 @@ int ced_capi_classify_pcm(ced_ctx* ctx, const float* samples, int n_samples, int
     return n;
 }
 
+int ced_capi_classify_pcm_probs(ced_ctx* ctx, const float* samples, int n_samples,
+                                int sample_rate, float* out, int n_out) {
+    auto* c = reinterpret_cast<CedContext*>(ctx);
+    if (!c || !samples || !out || n_out <= 0) return -1;
+    std::vector<float> probs;
+    if (!do_classify(c, samples, n_samples, sample_rate, probs)) return -1;
+    const int n = std::min(n_out, (int)probs.size());
+    std::memcpy(out, probs.data(), (size_t)n * sizeof(float));
+    return n;
+}
+
 void ced_capi_free_string(char* s) { std::free(s); }
 
 }  // extern "C"
