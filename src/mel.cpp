@@ -34,6 +34,19 @@ void mel_spectrogram(const CedConfig& cfg, const float* window, const float* fil
     input_values.assign((size_t)n_mels * T, 0.0f);
     std::vector<float> frame(n_fft), re, im, power(n_freqs);
 
+    // Each triangular mel filter is non-zero over a narrow band only; restrict
+    // the filterbank product to [lo, hi) per row. The skipped terms are exact
+    // zeros, so the sums (and their order) are unchanged.
+    std::vector<int> lo(n_mels, 0), hi(n_mels, 0);
+    for (int m = 0; m < n_mels; ++m) {
+        const float* fb = filterbank + (size_t)m * n_freqs;
+        int f0 = 0, f1 = n_freqs;
+        while (f0 < n_freqs && fb[f0] == 0.0f) ++f0;
+        while (f1 > f0 && fb[f1 - 1] == 0.0f) --f1;
+        lo[m] = f0;
+        hi[m] = f1;
+    }
+
     for (int t = 0; t < T; ++t) {
         const int start = t * hop;
         for (int i = 0; i < n_fft; ++i) {
@@ -46,7 +59,7 @@ void mel_spectrogram(const CedConfig& cfg, const float* window, const float* fil
         for (int m = 0; m < n_mels; ++m) {
             const float* fb = filterbank + (size_t)m * n_freqs;
             float acc = 0.0f;
-            for (int f = 0; f < n_freqs; ++f) acc += fb[f] * power[f];
+            for (int f = lo[m]; f < hi[m]; ++f) acc += fb[f] * power[f];
             input_values[(size_t)m * T + t] = acc;  // mel power, dB applied below
         }
     }
