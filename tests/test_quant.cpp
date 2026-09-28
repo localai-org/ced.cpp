@@ -30,6 +30,7 @@ int main(int argc, char** argv) {
 
     ced::Ced m;
     if (!m.load(model)) { std::fprintf(stderr, "FAIL: load %s\n", model.c_str()); return 1; }
+    std::fprintf(stderr, "device: %s\n", m.device_name().c_str());
 
     std::vector<float> wav, refp;
     std::vector<int64_t> shp;

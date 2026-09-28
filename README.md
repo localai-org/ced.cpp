@@ -114,6 +114,8 @@ cmake --build build-shared -j
 
 To build for a GPU backend, forward its flag, e.g. `cmake -B build -DCED_GGML_METAL=ON`.
 
+At runtime a GPU build picks the first GPU it finds and falls back to CPU. Set `CED_DEVICE` to choose: `CED_DEVICE=cpu` forces the CPU, and a device name such as `CUDA0`, `Vulkan0` or `MTL0` selects that device (`ced-cli info` prints the one in use). The weights are uploaded to the device once at load. If the device has no kernel for an op, that graph runs through ggml's scheduler with a CPU fallback.
+
 ---
 
 ## Running inference

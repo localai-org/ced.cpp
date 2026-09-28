@@ -41,6 +41,38 @@ classified per wall-second).
   before the first inference — a large practical gap for serving and CLI use.
 - **Parity holds throughout**: identical top-5 tags across all variants.
 
+## GPU
+
+The same build runs on any ggml GPU backend (see `CED_DEVICE` in the README).
+Numbers below are mean `ced-cli bench` latency, 30 iterations after 3 warmup,
+next to the CPU of the same machine at 4 threads. The 36 s clip is split into
+four ~10 s chunks, so it measures the multi-chunk path.
+
+| Device | Model | 6 s clip | 36 s clip | same host CPU, 36 s |
+|---|---|--:|--:|--:|
+| Apple M4, Metal | base f32  | 17.5 ms | 99.5 ms | 1151.7 ms |
+| Apple M4, Metal | base q8_0 | 16.9 ms | 97.6 ms | 419.5 ms |
+| Apple M4, Metal | tiny q8_0 | 5.7 ms  | 30.2 ms | 63.6 ms |
+| Radeon 8060S, Vulkan (RADV) | base f32  | 14.7 ms | 70.6 ms | 446.4 ms |
+| Radeon 8060S, Vulkan (RADV) | base q8_0 | 10.3 ms | 48.7 ms | 425.1 ms |
+| Radeon 8060S, Vulkan (RADV) | tiny q8_0 | 7.0 ms  | 33.2 ms | 73.7 ms |
+| NVIDIA GB10, CUDA 13 | base f32  | 11.3 ms | 62.6 ms | 2393.7 ms |
+| NVIDIA GB10, CUDA 13 | base q8_0 | 10.5 ms | 61.8 ms | 2332.7 ms |
+| NVIDIA GB10, CUDA 13 | tiny q8_0 | 9.9 ms  | 55.4 ms | 289.6 ms |
+
+- **ced-base is 6x (Vulkan) to 12x (Metal) faster than the CPU of the same
+  machine.** The GB10 CPU column is from a container build that is slow on
+  CPU in general, so do not read the CUDA ratio as representative.
+- **The GPU output keeps the CPU tags.** Over tiny and base at f32, f16 and
+  q8_0 on both clips, the top-5 tags are the same on every backend. f32
+  probabilities agree with the CPU to about 2e-4. Quantized models move more
+  (up to ~1e-2 for tiny q8_0), because the CPU also quantizes the activations
+  of q8_0 matmuls and the GPU backends do not.
+- **Small models are bound by the host.** The mel frontend runs on the CPU,
+  and for ced-tiny it is a large part of the GPU latency (on the GB10 about
+  47 of the 55 ms on the 36 s clip). The GPU compute itself is a few
+  milliseconds per chunk.
+
 ## Reproduce
 
 ```sh

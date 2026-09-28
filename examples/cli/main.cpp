@@ -29,6 +29,7 @@ static int cmd_info(const char* path) {
     std::printf("  mel               : n_mels=%u n_fft=%u hop=%u win=%u sr=%u\n", c.n_mels,
                 c.n_fft, c.hop_size, c.win_size, c.sample_rate);
     std::printf("  target_length     : %u frames\n", c.target_length);
+    std::printf("  device            : %s\n", m.device_name().c_str());
     return 0;
 }
 
@@ -122,7 +123,8 @@ static int cmd_bench(int argc, char** argv) {
     double median = ms[ms.size() / 2];
     double minv = ms.front(), maxv = ms.back();
 
-    std::printf("model=%s  clip=%.2fs  threads=%d  iters=%d\n", model, clip_s, threads, iters);
+    std::printf("model=%s  device=%s  clip=%.2fs  threads=%d  iters=%d\n", model,
+                m.device_name().c_str(), clip_s, threads, iters);
     std::printf("  latency ms: min=%.2f  median=%.2f  mean=%.2f  max=%.2f\n", minv, median, mean, maxv);
     std::printf("  RTF (clip_s/mean_s): %.1fx realtime  (%.1f clips/s)\n",
                 clip_s / (mean / 1000.0), 1000.0 / mean);

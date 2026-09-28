@@ -22,6 +22,7 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "FAIL: could not load model %s\n", model.c_str());
         return 1;
     }
+    std::fprintf(stderr, "device: %s\n", m.device_name().c_str());
 
     std::vector<float> tokens;
     std::vector<int64_t> shape;
@@ -44,11 +45,11 @@ int main(int argc, char** argv) {
     std::vector<int64_t> rshape;
 
     if (cedtest::load_baseline(baseline, "enc_norm", ref, rshape))
-        ok &= cedtest::compare(enc, ref, "enc_norm", 2e-3f, 0.0f);
+        ok &= cedtest::compare(enc, ref, "enc_norm", cedtest::stage_tol(m.device_name(), 2e-3f), 0.0f);
     else ok = false;
 
     if (cedtest::load_baseline(baseline, "logits", ref, rshape))
-        ok &= cedtest::compare(logits, ref, "logits", 2e-3f, 0.0f);
+        ok &= cedtest::compare(logits, ref, "logits", cedtest::stage_tol(m.device_name(), 2e-3f), 0.0f);
     else ok = false;
 
     if (cedtest::load_baseline(baseline, "probs", ref, rshape))

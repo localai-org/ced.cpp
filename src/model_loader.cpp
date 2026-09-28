@@ -1,11 +1,14 @@
 #include "model_loader.hpp"
 
+#include "ced_runner.hpp"
+
 #include "ggml-backend.h"
 #include "ggml-cpu.h"
 #include "ggml.h"
 #include "gguf.h"
 
 #include <cstdio>
+#include <cstring>
 
 namespace ced {
 
@@ -29,22 +32,69 @@ static std::string kv_str(gguf_context* g, const char* k, const char* d = "") {
 ModelLoader::~ModelLoader() {
     if (weights_buf_) ggml_backend_buffer_free(weights_buf_);
     if (gguf_) gguf_free(gguf_);
+    if (dev_ctx_) ggml_free(dev_ctx_);
     if (ctx_) ggml_free(ctx_);
 }
 
-bool ModelLoader::realize_weights_cpu() {
+// Tensors read on the host (the mel frontend and the init_bn fold), kept as
+// host copies so they stay readable once the weights move to a device.
+static bool host_side(const std::string& n) {
+    return n.rfind("ced.mel_", 0) == 0 || n.rfind("encoder.init_bn.", 0) == 0;
+}
+
+bool ModelLoader::realize_weights(const Backend& backend) {
     if (weights_buf_) return true;  // idempotent
-    if (!ctx_) return false;
-    // The GGUF was loaded no_alloc=false, so every tensor's data lives in one
-    // contiguous ctx mem buffer. Wrap that exact memory as a CPU backend buffer
-    // (zero-copy) and point every tensor's ->buffer at it; graphs then reference
-    // the loader's tensors directly as already-allocated leaves.
-    void* base = ggml_get_mem_buffer(ctx_);
-    size_t size = ggml_get_mem_size(ctx_);
-    weights_buf_ = ggml_backend_cpu_buffer_from_ptr(base, size);
-    if (!weights_buf_) return false;
-    for (auto& kv : tensors_) kv.second->buffer = weights_buf_;
+    if (!ctx_ || !backend.ok()) return false;
+
+    for (auto& kv : tensors_) {
+        ggml_tensor* t = kv.second;
+        if (!host_side(kv.first) || t->type != GGML_TYPE_F32) continue;
+        const float* p = (const float*)t->data;
+        host_[kv.first].assign(p, p + ggml_nelements(t));
+    }
+
+    if (backend.is_cpu()) {
+        // The GGUF was loaded no_alloc=false, so every tensor's data lives in
+        // one contiguous ctx mem buffer. Wrap that exact memory as a CPU
+        // backend buffer (zero-copy) and point every tensor's ->buffer at it;
+        // graphs then reference the loader's tensors directly as leaves.
+        void* base = ggml_get_mem_buffer(ctx_);
+        size_t size = ggml_get_mem_size(ctx_);
+        weights_buf_ = ggml_backend_cpu_buffer_from_ptr(base, size);
+        if (!weights_buf_) return false;
+        for (auto& kv : tensors_) kv.second->buffer = weights_buf_;
+        return true;
+    }
+
+    // Device: mirror every tensor into a no_alloc context, allocate them all in
+    // one device buffer, upload once, then drop the host copy.
+    struct ggml_init_params ip { ggml_tensor_overhead() * (tensors_.size() + 1), nullptr,
+                                 /*no_alloc=*/true };
+    dev_ctx_ = ggml_init(ip);
+    if (!dev_ctx_) return false;
+    std::unordered_map<std::string, ggml_tensor*> dev;
+    for (auto& kv : tensors_) {
+        ggml_tensor* d = ggml_dup_tensor(dev_ctx_, kv.second);
+        ggml_set_name(d, kv.first.c_str());
+        dev[kv.first] = d;
+    }
+    weights_buf_ = ggml_backend_alloc_ctx_tensors(dev_ctx_, backend.handle());
+    if (!weights_buf_) {
+        std::fprintf(stderr, "ced: device weight allocation failed\n");
+        return false;
+    }
+    ggml_backend_buffer_set_usage(weights_buf_, GGML_BACKEND_BUFFER_USAGE_WEIGHTS);
+    for (auto& kv : tensors_)
+        ggml_backend_tensor_set(dev[kv.first], kv.second->data, 0, ggml_nbytes(kv.second));
+    tensors_ = std::move(dev);
+    ggml_free(ctx_);
+    ctx_ = nullptr;
     return true;
+}
+
+const float* ModelLoader::host_f32(const std::string& n) const {
+    auto it = host_.find(n);
+    return it == host_.end() ? nullptr : it->second.data();
 }
 
 bool ModelLoader::load(const std::string& path) {

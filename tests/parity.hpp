@@ -62,4 +62,15 @@ inline bool compare(const std::vector<float>& got, const std::vector<float>& ref
     return ok;
 }
 
+// Tolerance for an intermediate stage (activations of magnitude ~1-10). The
+// reference values are CPU f32 and are gated tightly on CPU. GPU backends run
+// their matmuls at lower internal precision (ggml's Metal matmul stages tiles
+// in half), which moves intermediates by up to ~1e-2 while the final
+// probabilities still agree to ~1e-4, so off-CPU the stage gate is widened.
+// The end-to-end probability gates are the same on every device.
+inline float stage_tol(const std::string& device, float cpu_tol) {
+    const float gpu_tol = 2e-2f;
+    return device == "cpu" ? cpu_tol : (cpu_tol > gpu_tol ? cpu_tol : gpu_tol);
+}
+
 }  // namespace cedtest
