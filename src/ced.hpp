@@ -1,7 +1,9 @@
 #pragma once
+#include <memory>
 #include <string>
 #include <vector>
 
+#include "ced_runner.hpp"
 #include "model_loader.hpp"
 
 namespace ced {
@@ -10,6 +12,8 @@ class Ced {
 public:
     bool load(const std::string& path);
     const CedConfig& config() const { return loader_.config(); }
+    // Compute device the model runs on ("cpu", "CUDA0", "Vulkan0", ...).
+    const std::string& device_name() const { return backend_->device_name(); }
 
     // Parity entry point: run the 12 ViT blocks + final norm + mean-pool head
     // from precomputed patch tokens. `tokens` is n_tokens * embed_dim, token-
@@ -36,12 +40,22 @@ public:
                                  std::vector<float>& pos_out, std::vector<float>& tokens,
                                  int& n_tokens, int n_threads = 4);
 
-    // End-to-end: waveform -> logits/probs over the 527 AudioSet classes.
+    // End-to-end: waveform -> logits/probs over the 527 AudioSet classes. Each
+    // target_length chunk runs as ONE graph (embed + blocks + head).
     bool classify(const std::vector<float>& wav, std::vector<float>& logits,
                   std::vector<float>& probs, int n_threads = 4);
 
 private:
+    struct Embed;
+    struct Head;
+    Embed build_embed(ggml_context* ctx, std::vector<GraphInput>& inputs,
+                      const std::vector<float>& input_values, int T) const;
+    Head build_blocks(ggml_context* ctx, ggml_tensor* tokens, int n_tokens) const;
+
     ModelLoader loader_;
+    std::unique_ptr<Backend> backend_;
+    // init_bn (BatchNorm2d, eval) folded into a per-mel scale/shift at load.
+    std::vector<float> bn_scale_, bn_shift_;
 };
 
 }  // namespace ced

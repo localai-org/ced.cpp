@@ -12,6 +12,8 @@ typedef struct ggml_backend_buffer* ggml_backend_buffer_t;
 
 namespace ced {
 
+class Backend;
+
 // All config is read from the GGUF (metadata-driven); nothing is hardcoded.
 struct CedConfig {
     std::string arch;
@@ -38,17 +40,24 @@ public:
     bool load(const std::string& path);
     const CedConfig& config() const { return cfg_; }
     ggml_tensor* tensor(const std::string& name) const;  // nullptr if absent
-    ggml_context* ggml_ctx() const { return ctx_; }
-    // Give every weight tensor a CPU backend buffer (zero-copy: wraps the ctx
-    // mem buffer) so graphs can reference them directly as leaves. Idempotent.
-    bool realize_weights_cpu();
+    // Make every weight usable as a graph leaf on `backend`. CPU: zero-copy
+    // (wraps the ctx mem buffer). GPU: one upload into a device buffer at load,
+    // after which the host copy is released; tensor() then returns the device
+    // tensors. Idempotent.
+    bool realize_weights(const Backend& backend);
+    // Host f32 copy of a small tensor the CPU side reads directly (mel window,
+    // mel filterbank, init_bn stats). Valid after realize_weights, on any
+    // device. nullptr if absent or not f32.
+    const float* host_f32(const std::string& name) const;
 
 private:
     CedConfig cfg_;
     gguf_context* gguf_ = nullptr;
     ggml_context* ctx_ = nullptr;
+    ggml_context* dev_ctx_ = nullptr;          // no_alloc mirror of ctx_ (GPU path)
     ggml_backend_buffer_t weights_buf_ = nullptr;
     std::unordered_map<std::string, ggml_tensor*> tensors_;
+    std::unordered_map<std::string, std::vector<float>> host_;
 };
 
 }  // namespace ced

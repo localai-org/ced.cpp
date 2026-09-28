@@ -20,6 +20,7 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "FAIL: load %s\n", model.c_str());
         return 1;
     }
+    std::fprintf(stderr, "device: %s\n", m.device_name().c_str());
 
     std::vector<float> wav, ref;
     std::vector<int64_t> shp;
@@ -44,16 +45,16 @@ int main(int argc, char** argv) {
         return 1;
     }
     if (cedtest::load_baseline(baseline, "init_bn_out", ref, shp))
-        ok &= cedtest::compare(init_bn_out, ref, "init_bn_out", 2e-3f, 0.0f);
+        ok &= cedtest::compare(init_bn_out, ref, "init_bn_out", cedtest::stage_tol(m.device_name(), 2e-3f), 0.0f);
     else ok = false;
     if (cedtest::load_baseline(baseline, "patch_embed", ref, shp))
-        ok &= cedtest::compare(patch_embed, ref, "patch_embed", 3e-3f, 0.0f);
+        ok &= cedtest::compare(patch_embed, ref, "patch_embed", cedtest::stage_tol(m.device_name(), 3e-3f), 0.0f);
     else ok = false;
     if (cedtest::load_baseline(baseline, "pos_out", ref, shp))
-        ok &= cedtest::compare(pos_out, ref, "pos_out", 3e-3f, 0.0f);
+        ok &= cedtest::compare(pos_out, ref, "pos_out", cedtest::stage_tol(m.device_name(), 3e-3f), 0.0f);
     else ok = false;
     if (cedtest::load_baseline(baseline, "tokens_in", ref, shp))
-        ok &= cedtest::compare(tokens, ref, "tokens_in", 3e-3f, 0.0f);
+        ok &= cedtest::compare(tokens, ref, "tokens_in", cedtest::stage_tol(m.device_name(), 3e-3f), 0.0f);
     else ok = false;
 
     // --- end-to-end: waveform -> probs ---
