@@ -54,6 +54,30 @@ int main(int argc, char** argv) {
         ced_capi_free_string(json);
     }
 
+    // all-scores path: same numbers as the sorted top-k path, in index order
+    {
+        const int nc = ced_capi_num_classes(ctx);
+        std::vector<float> all(nc, -1.0f);
+        int w = ced_capi_classify_pcm_probs(ctx, wav.data(), (int)wav.size(), 16000,
+                                            all.data(), nc);
+        ok &= (w == nc);
+        std::vector<ced_tag> sorted(nc);
+        int ns = ced_capi_classify_pcm(ctx, wav.data(), (int)wav.size(), 16000,
+                                       sorted.data(), nc);
+        ok &= (ns == nc);
+        for (int i = 0; i < ns; ++i) ok &= (all[sorted[i].index] == sorted[i].score);
+        // short buffer: only the first n_out classes
+        float three[3];
+        ok &= (ced_capi_classify_pcm_probs(ctx, wav.data(), (int)wav.size(), 16000,
+                                           three, 3) == 3);
+        ok &= (three[0] == all[0] && three[2] == all[2]);
+        // errors
+        ok &= (ced_capi_classify_pcm_probs(ctx, nullptr, 10, 16000, three, 3) == -1);
+        ok &= (ced_capi_classify_pcm_probs(ctx, wav.data(), (int)wav.size(), 16000,
+                                           nullptr, 3) == -1);
+        std::fprintf(stderr, "classify_pcm_probs: %s\n", ok ? "ok" : "FAIL");
+    }
+
     ced_capi_free(ctx);
     std::fprintf(stderr, "%s\n", ok ? "PASS" : "FAIL");
     return ok ? 0 : 1;
