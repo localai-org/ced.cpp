@@ -42,6 +42,7 @@ endif()
 
 set(CED_SRC
     src/model_loader.cpp
+    src/gguf_check.cpp
     src/ced_runner.cpp
     src/fft.cpp
     src/mel.cpp

@@ -11,6 +11,12 @@ namespace ced {
 class Ced {
 public:
     bool load(const std::string& path);
+    // Load from a GGUF in memory (see ModelLoader::load_from_memory). `data` is
+    // not needed after the call returns. `prefix` selects a model inside a larger
+    // GGUF; leave it empty for a standalone model.
+    bool load_from_memory(const void* data, size_t size, const std::string& prefix = "");
+    // Why the last load failed ("" if it did not).
+    const std::string& load_error() const { return err_; }
     const CedConfig& config() const { return loader_.config(); }
     // Compute device the model runs on ("cpu", "CUDA0", "Vulkan0", ...).
     const std::string& device_name() const { return backend_->device_name(); }
@@ -46,6 +52,7 @@ public:
                   std::vector<float>& probs, int n_threads = 4);
 
 private:
+    bool finish_load();
     struct Embed;
     struct Head;
     Embed build_embed(ggml_context* ctx, std::vector<GraphInput>& inputs,
@@ -53,6 +60,7 @@ private:
     Head build_blocks(ggml_context* ctx, ggml_tensor* tokens, int n_tokens) const;
 
     ModelLoader loader_;
+    std::string err_;
     std::unique_ptr<Backend> backend_;
     // init_bn (BatchNorm2d, eval) folded into a per-mel scale/shift at load.
     std::vector<float> bn_scale_, bn_shift_;

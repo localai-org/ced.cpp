@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <exception>
+#include <new>
 #include <cstring>
 #include <numeric>
 #include <string>
@@ -109,6 +111,45 @@ ced_ctx* ced_capi_load(const char* gguf_path) {
     }
     g_load_error.clear();
     return reinterpret_cast<ced_ctx*>(c);
+}
+
+static ced_ctx* load_memory_impl(const void* data, size_t size, const std::string& prefix) {
+    if (!data || size == 0) {
+        g_load_error = "empty model buffer";
+        return nullptr;
+    }
+    auto* c = new (std::nothrow) CedContext();
+    if (!c) {
+        g_load_error = "out of memory";
+        return nullptr;
+    }
+    try {
+        if (!c->model.load_from_memory(data, size, prefix)) {
+            const std::string& why = c->model.load_error();
+            g_load_error = "failed to load model from memory: " +
+                           why;
+            delete c;
+            return nullptr;
+        }
+    } catch (const std::exception& e) {
+        g_load_error = std::string("failed to load model from memory: ") + e.what();
+        delete c;
+        return nullptr;
+    }
+    g_load_error.clear();
+    return reinterpret_cast<ced_ctx*>(c);
+}
+
+ced_ctx* ced_capi_load_from_memory(const void* data, size_t size) {
+    return load_memory_impl(data, size, std::string());
+}
+
+ced_ctx* ced_capi_load_from_memory_prefixed(const void* data, size_t size, const char* prefix) {
+    if (!prefix || !*prefix) {
+        g_load_error = "null or empty prefix";
+        return nullptr;
+    }
+    return load_memory_impl(data, size, prefix);
 }
 
 void ced_capi_free(ced_ctx* ctx) { delete reinterpret_cast<CedContext*>(ctx); }
