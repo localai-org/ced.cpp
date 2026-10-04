@@ -163,6 +163,28 @@ ced_capi_free(ctx);
 
 The per-PCM entry points take an arbitrary mono window, so a realtime consumer can call them on a sliding buffer for live recognition. There is also a struct-array variant (`ced_capi_classify_pcm`), a WAV-path variant (`ced_capi_classify_path_json`), and `ced_capi_classify_pcm_probs`, which writes every class score in class-index order (no sorting, no allocation) for callers that want the raw distribution. See `include/ced_capi.h` for the full API.
 
+### Loading from memory
+
+A model can also be loaded from bytes you already hold, with no file path and no temporary file, on Linux, macOS and Windows:
+
+```c
+// `buf` holds a complete GGUF file of `len` bytes (read from a network blob, an archive, a bundle, ...).
+ced_ctx *ctx = ced_capi_load_from_memory(buf, len);
+free(buf);   // fine: the tensor data was copied during the call
+if (!ctx) { fprintf(stderr, "%s\n", ced_capi_last_error(NULL)); return 1; }
+```
+
+The buffer is only read during the call, so you can free or overwrite it as soon as the call returns. For a moment the process holds the buffer and the model together. A truncated or corrupt buffer gives `NULL` and a message in `ced_capi_last_error(NULL)`; it never reads outside `[buf, buf + len)`. Like `ced_capi_load`, loads from several threads at once are safe.
+
+If the model is one component of a larger GGUF (a bundle that holds several models), pass the whole file and the component prefix:
+
+```c
+// Every key and tensor of the component is stored as "<prefix><name>", e.g. "ced.encoder.init_bn.weight".
+ced_ctx *ctx = ced_capi_load_from_memory_prefixed(bundle, bundle_len, "ced.");
+```
+
+Only the tensors under the prefix are copied, so no standalone copy of the component is needed. C++ users can call `ced::Ced::load_from_memory(data, size, prefix = "")`.
+
 ---
 
 ## LocalAI

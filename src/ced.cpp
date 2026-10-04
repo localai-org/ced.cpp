@@ -24,9 +24,24 @@ struct Ced::Head {
 };
 
 bool Ced::load(const std::string& path) {
-    if (!loader_.load(path)) return false;
+    err_.clear();
+    if (!loader_.load(path)) { err_ = loader_.error(); return false; }
+    return finish_load();
+}
+
+bool Ced::load_from_memory(const void* data, size_t size, const std::string& prefix) {
+    err_.clear();
+    if (!loader_.load_from_memory(data, size, prefix)) { err_ = loader_.error(); return false; }
+    return finish_load();
+}
+
+// Everything after the I/O step; identical for every load path.
+bool Ced::finish_load() {
     backend_ = std::make_unique<Backend>();
-    if (!backend_->ok() || !loader_.realize_weights(*backend_)) return false;
+    if (!backend_->ok() || !loader_.realize_weights(*backend_)) {
+        err_ = "backend or weight setup failed";
+        return false;
+    }
 
     const CedConfig& c = loader_.config();
     const float* bw = loader_.host_f32("encoder.init_bn.weight");
@@ -35,6 +50,7 @@ bool Ced::load(const std::string& path) {
     const float* bv = loader_.host_f32("encoder.init_bn.running_var");
     if (!bw || !bb || !bm || !bv) {
         std::fprintf(stderr, "ced: missing init_bn tensors\n");
+        err_ = "model is missing the encoder.init_bn tensors";
         return false;
     }
     bn_scale_.resize(c.n_mels);

@@ -38,6 +38,17 @@ public:
     ModelLoader() = default;
     ~ModelLoader();
     bool load(const std::string& path);
+    // Load from a GGUF held in memory. Nothing is read from disk, and `data` is
+    // only read during the call: the tensor data is copied into the loader's own
+    // buffers, so the caller may free or reuse `data` afterwards.
+    //
+    // A non-empty `prefix` selects one model inside a larger GGUF (a bundle):
+    // every metadata key and tensor name of the model is stored as
+    // `<prefix><name>`. Only the tensors under the prefix are copied, and they
+    // are seen under their unprefixed names.
+    bool load_from_memory(const void* data, size_t size, const std::string& prefix = "");
+    // Why the last load failed ("" if it did not).
+    const std::string& error() const { return err_; }
     const CedConfig& config() const { return cfg_; }
     ggml_tensor* tensor(const std::string& name) const;  // nullptr if absent
     // Make every weight usable as a graph leaf on `backend`. CPU: zero-copy
@@ -51,7 +62,10 @@ public:
     const float* host_f32(const std::string& name) const;
 
 private:
+    bool read_model(const std::string& prefix);  // shared by every load path
+
     CedConfig cfg_;
+    std::string err_;
     gguf_context* gguf_ = nullptr;
     ggml_context* ctx_ = nullptr;
     ggml_context* dev_ctx_ = nullptr;          // no_alloc mirror of ctx_ (GPU path)

@@ -1,7 +1,7 @@
 set(CED_MODEL_GGUF    "${PROJECT_SOURCE_DIR}/models/ced-base-f32.gguf")
 set(CED_BASELINE_GGUF "${PROJECT_SOURCE_DIR}/tests/fixtures/ced-base.baseline.gguf")
 
-foreach(t blocks frontend quant capi)
+foreach(t blocks frontend quant capi memory)
   add_executable(test_${t} test_${t}.cpp)
   target_link_libraries(test_${t} PRIVATE ced)
   target_include_directories(test_${t} PRIVATE
@@ -9,6 +9,11 @@ foreach(t blocks frontend quant capi)
       ${PROJECT_SOURCE_DIR}/include
       ${PROJECT_SOURCE_DIR}/third_party/ggml/include)
 endforeach()
+# Load from memory (plain and prefixed) vs the path loader, bit for bit, plus
+# truncated/corrupt buffers. Needs two different CED models (tiny and mini).
+add_test(NAME memory COMMAND test_memory
+         "${CMAKE_SOURCE_DIR}/models/ced-tiny-q8_0.gguf"
+         "${CMAKE_SOURCE_DIR}/models/ced-mini-q8_0.gguf")
 add_test(NAME capi COMMAND test_capi "${CED_MODEL_GGUF}" "${CED_BASELINE_GGUF}")
 
 # Per-component parity (f32 reference path).
